@@ -1,0 +1,69 @@
+﻿class FunctionDefinition : TopLevelEntity {
+
+    field nameToken;
+    field argTokens;
+    field body;
+    field varScope = null;
+
+    constructor(defToken, nameToken, argTokens, owner)
+        : base(defToken, owner)
+    {
+        this.nameToken = nameToken;
+        this.argTokens = argTokens[:];
+    }
+
+    function toPythonString(indent, sb) {
+        sb.add(indent, 'def ', this.nameToken.value, '(');
+        for (i = 0; i < this.argTokens.length; ++i) {
+            if (i > 0) sb.add(', ');
+            sb.add(this.argTokens[i].value);
+        }
+        sb.add('):\n');
+        indent += '  ';
+        for (line : this.body) {
+            line.toPythonString(indent, sb);
+        }
+        sb.add('\n');
+    }
+
+    function findVarAssignments(varScope, module) {
+        varScope.addSource(this.nameToken.value, this);
+        this.varScope = new VariableScope(varScope);
+        for (arg : this.argTokens) {
+            this.varScope.addSource(arg.value, this);
+        }
+        for (line : this.body) {
+            line.findVarAssignments(this.varScope, module);
+        }
+    }
+
+    function identifyVariableSource(varScope) {
+        for (line : this.body) {
+            line.identifyVariableSource(this.varScope);
+        }
+    }
+
+    function simplify(exporter) {
+        this.body = Executable.simplifyBodyOfCode(this.body, exporter);
+        return [this];
+    }
+
+    function serialize(sb, indent, exporter) {
+        sb.add(indent);
+        ownerVarScope = this.owner.varScope;
+        funcName = this.nameToken.value;
+        sb.add(ownerVarScope.getTranspiledVarReference(funcName));
+        sb.add(' = [PyType.FUNCTION, (');
+        for (i = 0; i < this.argTokens.length; ++i) {
+            if (i > 0) sb.add(', ');
+            argName = this.argTokens[i].value;
+            sb.add(this.varScope.getTranspiledVarReference(argName));
+        }
+        sb.add(') => {\n');
+        innerIndent = indent + '    ';
+        for (line : this.body) {
+            line.serialize(sb, innerIndent, exporter);
+        }
+        sb.add(indent, '}];\n');
+    }
+}

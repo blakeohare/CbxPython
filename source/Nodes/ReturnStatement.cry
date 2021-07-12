@@ -1,0 +1,41 @@
+﻿class ReturnStatement : Executable {
+
+    field expr;
+
+    constructor(returnToken, expr, owner) : base(returnToken, owner) {
+        this.expr = expr;
+    }
+
+    function toPythonString(indent, sb) {
+        sb.add(indent, 'return');
+        if (this.expr != null) {
+            sb.add(' ');
+            this.expr.toPythonString(indent, sb);
+        }
+        sb.add('\n');
+    }
+
+    function findVarAssignments(varScope, module) {
+
+    }
+
+    function identifyVariableSource(varScope) {
+        if (this.expr != null) {
+            this.expr = this.expr.identifyVariableSource(varScope);
+        }
+    }
+
+    function simplify(exporter) { return [this]; }
+
+    function serialize(sb, indent, exporter) {
+
+        sb.add(indent);
+        sb.add('return ');
+        if (this.expr == null) {
+            sb.add('null');
+        } else {
+            this.expr.serialize(sb, indent, exporter);
+        }
+        sb.add(';\n');
+    }
+}

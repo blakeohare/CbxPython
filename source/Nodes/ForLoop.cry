@@ -1,0 +1,73 @@
+﻿class ForLoop : Executable {
+
+    field iteratorToken;
+    field collectionExpr;
+    field code;
+    field iteratorSource = null;
+
+    constructor(forToken, iteratorToken, collectionExpr, code, owner)
+        : base(forToken, owner) {
+        this.iteratorToken = iteratorToken;
+        this.collectionExpr = collectionExpr;
+        this.code = code.clone();
+    }
+
+    function toPythonString(indent, sb) {
+        sb.add(indent, 'for ', this.iteratorToken.value, ' in ');
+        this.collectionExpr.toPythonString(indent, sb);
+        sb.add(':\n');
+        nextIndent = indent + '  ';
+        for (line : this.code) {
+            line.toPythonString(nextIndent, sb);
+        }
+    }
+
+    function findVarAssignments(varScope, module) {
+        varScope.addSource(this.iteratorToken.value, this);
+        for (line : this.code) {
+            line.findVarAssignments(varScope, module);
+        }
+    }
+
+    function identifyVariableSource(varScope) {
+        this.iteratorSource = varScope.getSource(this.iteratorToken.value, this.iteratorToken);
+        this.collectionExpr = this.collectionExpr.identifyVariableSource(varScope);
+        for (line : this.code) {
+            line.identifyVariableSource(this.owner.varScope);
+        }
+    }
+
+    function simplify(exporter) {
+        this.code = Executable.simplifyBodyOfCode(this.code, exporter);
+        return [this];
+    }
+
+    static field forLoopIndexAlloc = 0;
+
+    function serialize(sb, indent, exporter) {
+        nextIndent = indent + '  ';
+        // TODO: there is a crash when multiple foreach loops are used in closures.
+        // Once this is fixed you can return to using a for (x : list) loop.
+        // For now, use a for (i = 0; i < len; ++i) loop.
+
+
+        i = ForLoop.forLoopIndexAlloc++;
+        iter = '_i' + i;
+        coll = '_c' + i;
+        sb.add(indent, coll, ' = PyEnsureIterable(');
+        this.collectionExpr.serialize(sb, indent, exporter);
+        sb.add(');\n');
+
+        sb.add(indent, 'for (', iter, ' = 0; ', iter, ' < ', coll, '.length; ', iter, '++) {\n');
+        varScopeOfIterator = this.iteratorSource.owner.varScope;
+        sb.add(nextIndent, varScopeOfIterator.getTranspiledVarReference(this.iteratorToken.value));
+        sb.add(' = ', coll, '[', iter, '];\n');
+
+
+        for (line : this.code) {
+            line.serialize(sb, nextIndent, exporter);
+        }
+
+        sb.add(indent, '}\n');
+    }
+}

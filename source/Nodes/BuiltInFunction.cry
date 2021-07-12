@@ -1,0 +1,27 @@
+﻿class BuiltInFunction : Expression {
+
+    field name;
+
+    constructor(firstToken, name, owner) : base(firstToken, owner) {
+        this.name = name;
+    }
+
+    function serialize(sb, indent, exporter) {
+        switch (this.name) {
+            case 'print':
+                sb.add('PyHelper.print');
+                break;
+
+            case 'range':
+                sb.add('PyHelper.range');
+                break;
+
+            case 'str':
+                sb.add('PyHelper.str');
+                break;
+
+            default:
+                throw new NotImplementedException("Built-in mapping for '" + this.name + "' not defined.");
+        }
+    }
+}

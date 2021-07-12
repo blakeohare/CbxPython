@@ -1,0 +1,16 @@
+﻿class BooleanLiteral : Expression {
+
+    field value;
+
+    constructor(token, value, owner) : base(token, owner) {
+        this.value = value;
+    }
+
+    function toPythonString(indent, sb) {
+        sb.add(this.value ? 'True' : 'False');
+    }
+
+    function serialize(sb, indent, exporter) {
+        sb.add('PyGlobals.', this.value ? 'TRUE' : 'FALSE');
+    }
+}

@@ -1,0 +1,12 @@
+﻿class NoneLiteral : Expression {
+
+    constructor(token, owner) : base(token, owner) { }
+
+    function toPythonString(indent, sb) {
+        sb.add('None');
+    }
+
+    function identifyVariableSource(varScope) {
+        return this;
+    }
+}

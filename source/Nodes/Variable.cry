@@ -1,0 +1,49 @@
+﻿class Variable : Expression {
+
+    field name;
+    field source;
+
+    constructor(nameToken, owner)
+        : base(nameToken, owner) {
+
+        this.name = nameToken.value;
+    }
+
+    function toPythonString(indent, sb) {
+        sb.add(this.firstToken.value);
+    }
+
+    function identifyVariableSource(varScope) {
+        this.source = varScope.getSource(this.name, null);
+        if (this.source == null) {
+            switch (this.name) {
+                case 'print':
+                case 'range':
+                case 'len':
+                case 'str':
+                case 'dir':
+                case 'open':
+                case 'ord':
+                case 'chr':
+                    return new BuiltInFunction(this.firstToken, this.name, this.owner);
+                default:
+                    throw new ParserException(this, "'" + this.name + "' is not defined anywhere.");
+                    break;
+            }
+        }
+        return this;
+    }
+
+    function serialize(sb, indent, exporter) {
+
+        if (this.source is FunctionDefinition && this.name != this.source.nameToken.value) {
+            // if the source is a function definition and its name doesn't match the function name, then that
+            // means it's an arg and you should use the varScope of the function.
+            varScope = this.source.varScope;
+        } else {
+            // Otherwise you should look at whatever the owner is of the source entity.
+            varScope = this.source.owner.varScope;
+        }
+        sb.add(varScope.getTranspiledVarReference(this.name));
+    }
+}

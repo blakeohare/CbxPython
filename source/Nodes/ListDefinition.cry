@@ -1,0 +1,48 @@
+﻿class ListDefinition : Expression {
+
+    field expressions;
+
+    constructor(listToken, expressions, owner) : base(listToken, owner) {
+        this.expressions = expressions.clone();
+    }
+
+    function toPythonString(indent, sb) {
+        if (this.expressions.length == 0) {
+            sb.add('[]');
+        } else if (this.expressions.length == 1) {
+            sb.add('[');
+            this.expressions[0].toPythonString(indent, sb);
+            sb.add(']');
+        } else {
+            sb.add('[');
+            for (i = 0; i < this.expressions.length; ++i) {
+                if (i > 0) sb.add(', ');
+                this.expressions[i].toPythonString(indent, sb);
+            }
+            sb.add(']');
+        }
+    }
+
+    function identifyVariableSource(varScope) {
+        for (i = 0; i < this.expressions.length; ++i) {
+            this.expressions[i] = this.expressions[i].identifyVariableSource(varScope);
+        }
+        return this;
+    }
+
+    function serialize(sb, indent, exporter) {
+        newIndent = indent + '    ';
+        if (this.expressions.length == 0) {
+            sb.add('[PyType.LIST, []]');
+        } else {
+            sb.add('[PyType.LIST, [\n');
+            for (i = 0; i < this.expressions.length; ++i) {
+                sb.add(newIndent);
+                this.expressions[i].serialize(sb, newIndent, exporter);
+                if (i < this.expressions.length - 1) sb.add(',');
+                sb.add('\n');
+            }
+            sb.add(indent, ']]');
+        }
+    }
+}

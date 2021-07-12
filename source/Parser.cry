@@ -1,0 +1,194 @@
+﻿class Parser {
+
+    field tokens;
+    field fileReader;
+    field execParser;
+    field exprParser;
+    field moduleFiles = [];
+    field moduleGenNameByFile = {};
+
+    constructor(file, fileReader) {
+        this.addModule(null, file);
+        this.fileReader = fileReader;
+        this.execParser = new ExecutableParser(this);
+        this.exprParser = new ExpressionParser(this);
+        this.execParser.exprParser = this.exprParser;
+        this.exprParser.execParser = this.execParser;
+    }
+
+    function parse() {
+        modules = [];
+        for (i = 0; i < this.moduleFiles.length; ++i) {
+            current = this.moduleFiles[i];
+            code = this.fileReader.readFile(current);
+            tokens = new Tokenizer('test.py', code).tokenize();
+            this.tokens = tokens;
+            this.execParser.tokens = tokens;
+            this.exprParser.tokens = tokens;
+            module = new Module(current, this.moduleGenNameByFile[current]);
+            module.code = this.parseBlock(0, module);
+
+            this.tokens.popIfPresent('\n');
+            if (this.tokens.hasMore()) {
+                throw new ParserException(
+                    this.tokens.peek(),
+                    "This shouldn't happen. All tokens should have been popped.");
+            }
+
+            modules.add(module);
+            print('--- ' + module.name + ' ' + 20 * '-');
+            print(module.toPythonString());
+
+        }
+
+        return modules;
+    }
+
+    function parseBlock(blockIndentLevel, owner) {
+        result = this.parseBlockImpl(blockIndentLevel, owner);
+        next = this.tokens.peek();
+        if (next != null && next.type == TokenType.NEW_LINE) {
+            this.tokens.pop(); // pop the \n if present
+        }
+        return result;
+    }
+
+    function parseBlockImpl(blockIndentLevel, owner) {
+        executables = [];
+        while (this.tokens.hasMore()) {
+            nextIndent = this.tokens.peekIndent().length;
+            if (nextIndent > blockIndentLevel) {
+                throw new ParserException(this.tokens.peek(), "Unexpected indent");
+            }
+
+            if (nextIndent < blockIndentLevel) {
+                return executables;
+            }
+
+            this.tokens.popIndent();
+            exec = this.parseLine(blockIndentLevel, true, owner);
+            if (exec != null) executables.add(exec);
+        }
+        return executables;
+    }
+
+    function parseColon(currentIndent, parent) {
+
+        this.tokens.popExpected(':');
+        // TODO: pass down parent
+        body = null;
+        if (!this.tokens.isNextType(TokenType.NEW_LINE)) {
+            exec = this.parseLine(currentIndent, false, parent);
+            body = exec == null ? [] : [exec];
+        } else {
+            this.tokens.popExpected('\n');
+            nestedIndentLevel = this.tokens.peekIndent().length;
+            if (nestedIndentLevel <= currentIndent) {
+                token = this.tokens.peek();
+                if (token == null) this.tokens.throwEofException();
+                throw new ParserException(token, "Expected new line");
+            }
+
+            body = this.parseBlock(nestedIndentLevel, parent);
+        }
+        return body;
+    }
+
+    field ASSIGN_OPS = Util.listToLookup([
+        '=', ':=',
+        '+=', '-=', '*=', '/=', '//=', '%=',
+        '^=', '&=', '|=',
+        '<<=', '>>=',
+    ]);
+
+    function parseLine(currentIndent, allowNestStatements, owner) {
+        nextToken = this.tokens.peek();
+        if (nextToken.type == TokenType.WORD) {
+            if (allowNestStatements) {
+                // need to know the current indent level to confirm that any nested block is more than that.
+                switch (nextToken.value) {
+                    case 'def': return this.execParser.parseDef(currentIndent, owner);
+                    case 'if': return this.execParser.parseIf(currentIndent, owner);
+                    case 'for': return this.execParser.parseFor(currentIndent, owner);
+                    case 'class': return this.execParser.parseClass(currentIndent, owner);
+                    case 'while': return this.execParser.parseWhile(currentIndent, owner);
+
+                    case 'try':
+                    case 'with':
+                        throw new NotImplementedException();
+
+                    case 'elif':
+                    case 'else':
+                        throw new ParserException(this.tokens.peek(), "else/elif statement without a preceeding if");
+
+                    default:
+                        break;
+                }
+            }
+
+            switch (nextToken.value) {
+                    case 'pass': return this.execParser.parsePass();
+                    case 'import': return this.execParser.parseImport(owner);
+                    case 'return': return this.execParser.parseReturn(owner);
+
+                    case 'yield':
+                    case 'break':
+                    case 'continue':
+                    case 'del':
+                    case 'from':
+                    case 'global':
+                    case 'raise':
+                        throw new Exception(); // not implemented yet
+
+                default:
+                    break;
+            }
+        }
+
+        expr = this.exprParser.parse(owner);
+
+        if (this.ASSIGN_OPS.get(this.tokens.peekValue(), false)) {
+            op = this.tokens.pop();
+            assignValue = this.exprParser.parse(owner);
+            exec = new AssignStatement(expr, op, assignValue, owner);
+        } else {
+            exec = new ExpressionAsExecutable(expr, owner);
+        }
+
+        if (this.tokens.hasMore()) this.tokens.popExpected('\n');
+
+        return exec;
+    }
+
+    field moduleNameIdAlloc = 1;
+    function queueImport(importStatement) {
+        target = importStatement.target;
+        filename = target.value.replace('.', '/');
+        attempts = [
+            filename + '.py',
+            filename + '/__init__.py',
+        ];
+
+        file = null;
+        for (attempt : attempts) {
+            if (this.fileReader.isFilePresent(attempt)) {
+                file = attempt;
+                break;
+            }
+        }
+
+        if (file == null) {
+            throw new ParserException(target, "Module does not exist: '" + target.value + "'");
+        }
+
+        this.addModule(importStatement, file);
+    }
+
+    function addModule(importStatement, file) {
+        if (importStatement != null) {
+            importStatement.file = file;
+        }
+        this.moduleGenNameByFile[file] = 'PyModule_' + (this.moduleNameIdAlloc++);
+        this.moduleFiles.add(file);
+    }
+}

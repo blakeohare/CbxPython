@@ -1,0 +1,5 @@
+﻿class TopLevelEntity : Executable {
+    constructor(firstToken, owner)
+        : base(firstToken, owner)
+    { }
+}

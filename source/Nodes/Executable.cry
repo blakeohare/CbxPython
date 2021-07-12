@@ -1,0 +1,23 @@
+﻿class Executable : Node {
+    constructor(firstToken, owner)
+        : base(firstToken, owner)
+    { }
+
+    function findVarAssignments(varScope, module) {
+        throw new NotImplementedException('findVarAssignments not implemented for ' + this);
+    }
+
+    function simplify(exporter) {
+        throw new NotImplementedException('.simplify(exporter) not implemented for ' + this);
+    }
+
+    static function simplifyBodyOfCode(lines, exporter) {
+        output = [];
+        for (line : lines) {
+            for (newLine : line.simplify(exporter)) {
+                output.add(newLine);
+            }
+        }
+        return output;
+    }
+}

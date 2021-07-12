@@ -1,0 +1,41 @@
+﻿import Json;
+
+enum FileOutputType {
+    JSON,
+    TEXT,
+}
+
+class FileOutput {
+
+    field type;
+    field content;
+
+    constructor(type, content) {
+        this.type = type;
+        this.content = content;
+    }
+
+    static function forText(content) {
+        return new FileOutput(FileOutputType.TEXT, content + '');
+    }
+
+    static function forJson(content) {
+        return new FileOutput(FileOutputType.JSON, content);
+    }
+
+    function save(path) {
+        switch (this.type) {
+            case FileOutputType.TEXT:
+                FileUtil.writeFileTextAndCreateDirectoryIfNecessary(path, this.content);
+                break;
+
+            case FileOutputType.JSON:
+                text = Json.serialize(this.content, Json.JsonSerializerFlag.PRETTY);
+                FileUtil.writeFileTextAndCreateDirectoryIfNecessary(path, text);
+                break;
+
+            default:
+                throw new Exception();
+        }
+    }
+}

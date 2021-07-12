@@ -1,0 +1,22 @@
+﻿class Node {
+
+    field firstToken;
+    field owner;
+
+    constructor(firstToken, owner) {
+        this.firstToken = firstToken;
+        this.owner = owner;
+    }
+
+    function toPythonString(indent, sb) {
+        throw new Exception(".toPythonString not implemented for " + this);
+    }
+
+    function identifyVariableSource(varScope) {
+        throw new Exception('.identifyVariableSource(varScope) not implemented for ' + this);
+    }
+
+    function serialize(sb, indent, exporter) {
+        throw new NotImplementedException("serializer not implemented for " + this);
+    }
+}

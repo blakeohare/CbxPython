@@ -1,0 +1,78 @@
+﻿class ClassDefinition : TopLevelEntity {
+
+    field nameToken;
+    field name;
+    field rawBody;
+    field varScope;
+    field members = {};
+    field classId;
+    field baseClassExpr;
+
+    static field classIdAlloc = 1;
+
+    constructor(classToken, nameToken, baseClassExpr, owner) : base(classToken, owner) {
+        this.nameToken = nameToken;
+        this.name = nameToken.value;
+        this.classId = ClassDefinition.classIdAlloc++;
+        this.baseClassExpr = baseClassExpr;
+    }
+
+    function toPythonString(indent, sb) {
+        sb.add(indent, 'class ', this.name, ':\n');
+        nextIndent = indent + '  ';
+        for (item : this.rawBody) {
+            item.toPythonString(nextIndent, sb);
+        }
+    }
+
+    function findVarAssignments(varScope, module) {
+        varScope.addSource(this.nameToken.value, this);
+
+        this.varScope = new VariableScope(varScope, this.classId);
+
+        for (line : this.rawBody) {
+            line.findVarAssignments(this.varScope, module);
+        }
+    }
+
+    function identifyVariableSource(varScope) {
+        if (this.baseClassExpr != null) {
+            this.baseClassExpr.identifyVariableSource(varScope);
+        }
+
+        for (line : this.rawBody) {
+            line.identifyVariableSource(this.varScope);
+        }
+    }
+
+    function simplify(exporter) {
+        return [this];
+    }
+
+    function serialize(sb, indent, exporter) {
+        ownerVarScope = this.owner.varScope;
+        sb.add(indent);
+        sb.add(ownerVarScope.getTranspiledVarReference(this.name));
+        sb.add(' = [() => {\n');
+        nextIndent = indent + '  ';
+        classVar = 'cls' + this.classId;
+        members = 'clsMem' + this.classId;
+        sb.add(nextIndent, members, ' = {};\n');
+        sb.add(nextIndent, classVar, ' = [PyType.CLASS, "', this.name, '", ');
+        if (this.baseClassExpr == null) {
+            sb.add('null');
+        } else {
+            sb.add('PyEnsureClass(');
+            this.baseClassExpr.serialize(sb, nextIndent, exporter);
+            sb.add(')');
+        }
+        sb.add(', ', members, ', ', this.classId, '];\n');
+
+        for (line : this.rawBody) {
+            line.serialize(sb, nextIndent, exporter);
+        }
+
+        sb.add(nextIndent, 'return ', classVar, ';\n');
+        sb.add(indent, '}][0]();\n'); // TODO: there's one off those stupid (func)() --> [func][0]() bug workarounds here.
+    }
+}

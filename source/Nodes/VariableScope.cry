@@ -1,0 +1,78 @@
+﻿class VariableScope {
+    field parentScope;
+    field variablesToSource = {};
+    field specialVar = {};
+    field rootScope;
+    field module;
+    field genNamesByOriginalName = {};
+    field scopeType;
+    field classId;
+
+    static field genNameAlloc = 0;
+
+    constructor(parent = null, classId = null) {
+        this.classId = classId;
+        this.scopeType = parent == null ? 'global' : (classId != null ? 'class' : 'normal');
+        this.parentScope = parent;
+        this.rootScope = parent == null ? this : parent.rootScope;
+    }
+
+    function denoteGlobal(name) {
+        // TODO: what happens when you call something a global twice?
+        // TODO: what happens when you call something a global and then say it's a nonlocal?
+        this.specialVar[name] = 'GL';
+    }
+
+    function denoteNonLocal(name) {
+        this.specialVar[name] = 'NL';
+    }
+
+    function addSource(name, assignment) {
+        if (this.specialVar.get(name) != null) {
+            return; // this is not actually the source.
+        }
+        this.variablesToSource[name] = assignment;
+    }
+
+    function getSource(name, throwToken) {
+        source = this.getSourceImpl(name);
+        if (source == null && throwToken != null) throw new ParserException(throwToken, "The variable '" + name + "' is not defined anywhere.");
+        return source;
+    }
+
+    function getSourceImpl(name, skipClassRoot = true) {
+        scope = this;
+        while (scope != null) {
+            if (!skipClassRoot || scope.scopeType != 'class' || scope == this) {
+                if (scope.specialVar.get(name) == 'GL') {
+                    return this.rootScope.variablesToSource.get(name);
+                }
+                source = scope.variablesToSource.get(name);
+                if (source != null) {
+                    return source;
+                }
+            }
+            scope = scope.parentScope;
+        }
+        return null;
+    }
+
+    function getTranspiledVarReference(name) {
+        switch (this.scopeType) {
+            case 'global':
+                return 'Mv["' + name + '"]';
+
+            case 'class':
+                return 'clsMem' + this.classId + '["' + name + '"]';
+
+            case 'normal':
+                genName = this.genNamesByOriginalName.get(name);
+                if (genName == null) {
+                    // TODO: move genNameAlloc to exporter
+                    genName = 'v' + (VariableScope.genNameAlloc++) + '_' + name;
+                    this.genNamesByOriginalName[name] = genName;
+                }
+                return genName;
+        }
+    }
+}

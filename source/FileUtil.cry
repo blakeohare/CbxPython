@@ -1,0 +1,25 @@
+﻿import FileIO;
+
+static class FileUtil {
+
+    static function getParentDirectory(path) {
+        t = path.split('/')[:-1];
+        if (t.length == 0) return null;
+        return t.join('/');
+    }
+
+    static function ensureDirectoryExists(path) {
+        if (!FileIO.directoryExists(path)) {
+            parent = FileUtil.getParentDirectory(path);
+            if (parent == null) throw new Exception("Weird file path!");
+            FileUtil.ensureDirectoryExists(parent);
+            FileIO.directoryCreate(path);
+        }
+    }
+
+    static function writeFileTextAndCreateDirectoryIfNecessary(path, content) {
+        parent = FileUtil.getParentDirectory(path);
+        FileUtil.ensureDirectoryExists(parent);
+        FileIO.fileWriteText(path, content);
+    }
+}

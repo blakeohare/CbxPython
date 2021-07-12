@@ -1,0 +1,267 @@
+﻿class ExpressionParser {
+
+    field parser;
+    field execParser;
+    field tokens;
+    field owner;
+
+    constructor(parser) {
+        this.parser = parser;
+    }
+
+    function parse(owner) {
+        prevOwner = this.owner;
+        this.owner = owner;
+        this.tokens.skipWhitespace();
+        expr = this.parseLambda();
+        this.owner = prevOwner;
+        return expr;
+    }
+
+    function parseLambda() {
+        if (this.tokens.isNext('lambda')) {
+            throw new NotImplementedException(); // not implemented
+        }
+        return this.parseTernary();
+    }
+
+    function parseTernary() {
+        left = this.parseOr();
+        if (!this.tokens.isNext('if')) {
+            return left;
+        }
+        throw new NotImplementedException(); // not implemented
+    }
+
+    function parseOr() {
+        expr = this.parseAnd();
+        if (!this.tokens.isNext('or')) return expr;
+        throw new NotImplementedException();
+    }
+
+    function parseAnd() {
+        expr = this.parseNot();
+        if (!this.tokens.isNext('and')) return expr;
+        throw new NotImplementedException();
+    }
+
+    function parseNot() {
+        if (this.tokens.isNext('not')) {
+            throw new NotImplementedException();
+        }
+        return this.parseComparison();
+    }
+
+    function parseOpChain(firstExpr, opLookup, nextParseFunc) {
+        exprs = [firstExpr];
+        ops = [];
+        while (opLookup.get(this.tokens.peekValue(), false)) {
+            ops.add(this.tokens.pop());
+            exprs.add(nextParseFunc());
+        }
+        return new OpChain(exprs, ops, this.owner);
+    }
+
+    field COMPARISON_OPS = Util.listToLookup(['>', '<', '>=', '<=', '==', '!=', 'not in', 'is not', 'is', 'in']);
+
+    function parseComparison() {
+        expr = this.parseBitwise();
+        if (!this.COMPARISON_OPS.get(this.tokens.peekValue(), false)) {
+            return expr;
+        }
+        return this.parseOpChain(expr, this.COMPARISON_OPS, this.parseBitwise);
+        // TODO: the "not in" and "is not" tokens are not single tokens
+        // TODO: a < b < c type of syntax needs to be supported
+    }
+
+    field BITWISE_OPS = Util.listToLookup('&|^');
+    function parseBitwise() {
+        expr = this.parseBitShift();
+        if (!this.BITWISE_OPS.get(this.tokens.peekValue(), false)) {
+            return expr;
+        }
+        return this.parseOpChain(expr, this.BITWISE_OPS, this.parseBitShift);
+    }
+
+    field BITSHIFT_OPS = Util.listToLookup(['<<', '>>']);
+    function parseBitShift() {
+        expr = this.parseAddition();
+        if (!this.BITSHIFT_OPS.get(this.tokens.peekValue(), false)) {
+            return expr;
+        }
+        return this.parseOpChain(expr, this.BITSHIFT_OPS, this.parseAddition);
+    }
+
+    field ADD_OPS = Util.listToLookup('-+');
+    function parseAddition() {
+        expr = this.parseMultiplication();
+        if (!this.ADD_OPS.get(this.tokens.peekValue(), false)) {
+            return expr;
+        }
+        return this.parseOpChain(expr, this.ADD_OPS, this.parseMultiplication);
+    }
+
+    field MULT_OPS = Util.listToLookup(['*', '/', '//', '%', '@']);
+    function parseMultiplication() {
+        expr = this.parseUnary();
+        if (!this.MULT_OPS.get(this.tokens.peekValue(), false)) {
+            return expr;
+        }
+        return this.parseOpChain(expr, this.MULT_OPS, this.parseUnary);
+    }
+
+    field UNARY_OPS = Util.listToLookup('-~+');
+    function parseUnary() {
+        if (this.UNARY_OPS.get(this.tokens.peekValue(), false)) {
+            throw new NotImplementedException();
+        }
+        return this.parseExponent();
+    }
+
+    function parseExponent() {
+        expr = this.parseEntityWithSuffixChain();
+        if (this.tokens.isNext('**')) {
+            throw new NotImplementedException();
+        }
+        return expr;
+    }
+
+    function parseEntityWithSuffixChain() {
+        root = this.parseEntity();
+        hasMore = true;
+        while (hasMore && this.tokens.hasMore()) {
+            switch (this.tokens.peekValue()) {
+                case '(':
+                    openParen = this.tokens.pop();
+                    this.tokens.skipWhitespace();
+                    args = [];
+                    while (!this.tokens.popIfPresent(')')) {
+                        if (args.length > 0) {
+                            this.tokens.popExpected(',');
+                            this.tokens.skipWhitespace();
+                        }
+                        arg = this.parse(this.owner);
+                        this.tokens.skipWhitespace();
+                        args.add(arg);
+                    }
+                    root = new FunctionInvocation(root.firstToken, root, openParen, args, this.owner);
+                    break;
+
+                case '[':
+                    openBracket = this.tokens.pop();
+                    this.tokens.skipWhitespace();
+                    index = this.parse(this.owner);
+                    this.tokens.skipWhitespace();
+                    this.tokens.popExpected(']');
+                    root = new BracketIndex(root.firstToken, root, openBracket, index, this.owner);
+                    break;
+
+                case '.':
+                    dotToken = this.tokens.pop();
+                    fieldToken = this.tokens.popName();
+                    root = new DotField(root, dotToken, fieldToken, this.owner);
+                    break;
+
+                default:
+                    hasMore = false;
+                    break;
+            }
+        }
+        return root;
+    }
+
+    function parseEntity() {
+        nextToken = this.tokens.peek();
+        if (nextToken == null) this.tokens.throwEofException();
+        nextValue = this.tokens.peekValue();
+        switch (nextValue) {
+            case '(':
+                this.tokens.pop();
+                this.tokens.skipWhitespace();
+                expr = this.parse(this.owner);
+                this.tokens.skipWhitespace();
+                this.tokens.popExpected(')');
+                return expr;
+
+            case 'None': return new NoneLiteral(this.tokens.pop(), this.owner);
+            case 'True':
+            case 'False':
+                return new BooleanLiteral(this.tokens.pop(), nextValue == 'True', this.owner);
+            case '[':
+                return this.parseListDef();
+            case '{':
+                return this.parseDictDef();
+
+            default: break;
+        }
+
+        switch (nextToken.type) {
+            case TokenType.STRING:
+                strToken = this.tokens.pop();
+                return new StringLiteral(strToken, Util.stringTokenToValue(strToken), this.owner);
+
+            case TokenType.NUMBER:
+                numToken = this.tokens.pop();
+                if (nextValue.contains('.')) {
+                    throw new NotImplementedException();
+                }
+                intValue = parseInt(nextValue);
+                return new IntegerLiteral(numToken, intValue, this.owner);
+
+            case TokenType.WORD:
+                varName = this.tokens.pop();
+                return new Variable(varName, this.owner);
+
+            case TokenType.INDENT:
+            case TokenType.NEW_LINE:
+                // TODO: this should be a hard crash but for now I want token info
+                throw new ParserException(nextToken, "whitespace shouldn't appear here.");
+
+            default:
+                throw new ParserException(nextToken, "Unexpected token");
+        }
+    }
+
+    function parseListDef() {
+        listToken = this.tokens.popExpected('[');
+        this.tokens.skipWhitespace();
+        nextAllowed = true;
+        exprs = [];
+        while (nextAllowed && !this.tokens.isNext(']')) {
+            item = this.parse(this.owner);
+            exprs.add(item);
+            this.tokens.skipWhitespace();
+            nextAllowed = this.tokens.popIfPresent(',');
+            this.tokens.skipWhitespace();
+        }
+        this.tokens.popExpected(']');
+        return new ListDefinition(listToken, exprs, this.owner);
+    }
+
+    function parseDictDef() {
+        dictToken = this.tokens.popExpected('{');
+        this.tokens.skipWhitespace();
+        nextAllowed = true;
+        keys = [];
+        values = [];
+        // TODO: verify that it's this flexible with whitespace
+        while (nextAllowed && !this.tokens.isNext('}')) {
+            key = this.parse(this.owner);
+            if (!(key is StringLiteral)) {
+                // what are the actual limits here?
+                throw new ParserException(key.firstToken, "Expected string as dictionary key");
+            }
+            this.tokens.skipWhitespace();
+            this.tokens.popExpected(':');
+            this.tokens.skipWhitespace();
+            value = this.parse(this.owner);
+            this.tokens.skipWhitespace();
+            nextAllowed = this.tokens.popIfPresent(',');
+            this.tokens.skipWhitespace();
+            keys.add(key);
+            values.add(value);
+        }
+        this.tokens.popExpected('}');
+        return new DictionaryDefinition(dictToken, keys, values, this.owner);
+    }
+}

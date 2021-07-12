@@ -1,0 +1,20 @@
+﻿class ParserException : Core.Exception {
+    constructor(tokenOrStream, message)
+        : base(ParserException.generateMessage(tokenOrStream, message))
+    { }
+
+    static function generateMessage(tokenOrStream, message) {
+        if (tokenOrStream is Node) {
+            tokenOrStream = tokenOrStream.firstToken;
+        }
+
+        if (tokenOrStream is TokenStream) {
+            lastLine = tokenOrStream.fileLines[-1].trim();
+            pointer = (lastLine.length - 1) * ' ' + '^';
+            message = ['  ', lastLine + '\n  ', pointer, '\n' + message].join('');
+        } else {
+            message = tokenOrStream.generateStackEntry() + "\n" + message;
+        }
+        return message;
+    }
+}

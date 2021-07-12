@@ -1,0 +1,93 @@
+﻿class IfStatement : Executable {
+
+    field conditions = [];
+    field bodies = [];
+    field ifElifElseTokens = [];
+
+    constructor(ifToken, owner) : base(ifToken, owner) {
+    }
+
+    function addElifOrIf(token, condition, code) {
+        this.ifElifElseTokens.add(token);
+        this.conditions.add(condition);
+        this.bodies.add(code);
+    }
+
+    function addElse(token, code) {
+        this.ifElifElseTokens.add(token);
+        this.conditions.add(null);
+        this.bodies.add(code);
+    }
+
+    function toPythonString(indent, sb) {
+        nextIndent = indent + '  ';
+        for (i = 0; i < this.bodies.length; ++i) {
+            sb.add(indent, this.ifElifElseTokens[i].value);
+            condition = this.conditions[i];
+            if (condition != null) {
+                sb.add(' ');
+                condition.toPythonString(indent, sb);
+            }
+            sb.add(':\n');
+            for (line : this.bodies[i]) {
+                line.toPythonString(nextIndent, sb);
+            }
+        }
+    }
+
+    function findVarAssignments(varScope, module) {
+        for (block : this.bodies) {
+            for (line : block) {
+                line.findVarAssignments(varScope, module);
+            }
+        }
+    }
+
+    function identifyVariableSource(varScope) {
+        for (i = 0; i < this.conditions.length; ++i) {
+            this.conditions[i] = this.conditions[i].identifyVariableSource(varScope);
+            for (line : this.bodies[i]) {
+                line.identifyVariableSource(varScope);
+            }
+        }
+    }
+
+    function simplify(exporter) {
+        for (i = 0; i < this.bodies.length; ++i) {
+            this.bodies[i] = Executable.simplifyBodyOfCode(this.bodies[i], exporter);
+        }
+        return [this];
+    }
+
+    function serialize(sb, indent, exporter) {
+        for (i = 0; i < this.conditions.length; ++i) {
+            token = this.ifElifElseTokens[i];
+            condition = this.conditions[i];
+            nextIndent = indent + '  ';
+            code = this.bodies[i];
+            sb.add(indent);
+            switch (token.value) {
+                case 'if':
+                    sb.add('if (PyTruthyCheck(');
+                    condition.serialize(sb, indent, exporter);
+                    sb.add(')) {\n');
+                    break;
+                case 'elif':
+                    sb.add('} else if (PyTruthyCheck(');
+                    condition.serialize(sb, indent, exporter);
+                    sb.add(')) {\n');
+                    break;
+                case 'else':
+                    sb.add('} else {\n');
+                    break;
+                default:
+                    throw new Exception();
+            }
+
+            for (line : code) {
+                line.serialize(sb, nextIndent, exporter);
+            }
+        }
+        sb.add(indent, '}\n');
+    }
+}

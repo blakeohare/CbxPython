@@ -1,0 +1,30 @@
+﻿import Resources;
+
+function main(args) {
+
+    if (args.length != 3) {
+        print("three arguments required:");
+        print(" - absolute path to the project directory");
+        print(" - entry point file");
+        print(" - relative path within the project directory to the starting file.");
+        return;
+    }
+
+    // fileReader = new DebugSourceFileReader('samples/basics');
+    // rootFile = 'test.py';
+
+    fileReader = new DiskSourceFileReader(args[0]);
+    rootFile = args[1];
+    targetDirectory = args[2];
+
+    parser = new Parser(rootFile, fileReader);
+    modules = parser.parse();
+
+    resolver = new Resolver(parser);
+
+    resolver.resolve(modules);
+
+    exporter = new Exporter(parser);
+
+    exporter.export(modules, targetDirectory);
+}

@@ -1,0 +1,28 @@
+﻿class DotField : Expression {
+
+    field root;
+    field dotToken;
+    field fieldName;
+
+    constructor(root, dotToken, fieldName, owner) : base(root.firstToken, owner) {
+        this.root = root;
+        this.dotToken = dotToken;
+        this.fieldName = fieldName;
+    }
+
+    function toPythonString(indent, sb) {
+        this.root.toPythonString(indent, sb);
+        sb.add('.', this.fieldName.value);
+    }
+
+    function identifyVariableSource(varScope) {
+        this.root = this.root.identifyVariableSource(varScope);
+        return this;
+    }
+
+    function serialize(sb, indent, exporter) {
+        sb.add('PyDot(');
+        this.root.serialize(sb, indent, exporter);
+        sb.add(", '", this.fieldName.value, "')");
+    }
+}

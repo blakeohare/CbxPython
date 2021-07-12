@@ -1,0 +1,42 @@
+﻿enum TokenType {
+    WORD,
+    INDENT,
+    NEW_LINE,
+    NUMBER,
+    SYMBOL,
+    STRING,
+    DECORATOR,
+}
+
+class Token {
+    field value;
+    field type;
+    field filename;
+    field stream; // set externally
+    field line;
+    field col;
+
+    constructor(filename, value, type, line, col) {
+        this.filename = filename;
+        this.value = value;
+        this.type = type;
+        this.line = line;
+        this.col = col;
+    }
+
+    function generateStackEntry() {
+        line = this.stream.fileLines[this.line - 1];
+        sb = [
+            '  File "', this.filename, '", Line ', this.line, ':\n',
+            '    '];
+        line = ('|' + line).trim()[1:];
+        col = this.col - 1 + this.value.length - 1;
+        pointer = ' ' * col + '^';
+        while (line.length > 0 && (line[0] == ' ' || line[0] == '\t')) {
+            line = line[1:];
+            pointer = pointer[1:];
+        }
+        sb.add(line, '\n', '    ', pointer);
+        return sb.join('');
+    }
+}

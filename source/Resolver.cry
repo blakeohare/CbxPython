@@ -1,0 +1,33 @@
+﻿class Resolver {
+
+    field parser;
+
+    constructor(parser) {
+        this.parser = parser;
+    }
+
+    function resolve(modules) {
+
+        // TODO: what happens when you mark an arg as a global or nonlocal? is that allowed?
+
+        // designate the list of module-level (global) values
+        for (module : modules) {
+
+            for (line : module.code) {
+                line.findVarAssignments(module.varScope, module);
+            }
+
+            for (line : module.code) {
+                line.identifyVariableSource(module.varScope);
+            }
+
+            newLines = [];
+            for (line : module.code) {
+                for (newLine : line.simplify(this)) {
+                    newLines.add(newLine);
+                }
+            }
+            module.code = newLines;
+        }
+    }
+}

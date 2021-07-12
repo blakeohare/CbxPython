@@ -1,0 +1,72 @@
+﻿import Resources;
+
+class Exporter {
+
+    field parser;
+    field classIdAlloc = 1;
+
+    constructor(parser) {
+        this.parser = parser;
+    }
+
+    function export(modules, targetDirectory) {
+        files = {};
+        for (module : modules) {
+            code = module.serialize(this);
+            filename = module.name;
+            if (filename[-3:].lower() != '.py') throw new Exception();
+            filename = filename[:-3] + '.cry';
+            files['user_modules/' + filename] = FileOutput.forText(code);
+        }
+
+        this.createAuxiliaryFiles(files, modules[0]);
+
+        this.saveFiles(targetDirectory, files);
+    }
+
+    function createAuxiliaryFiles(files, firstModule) {
+
+        files['main.cry'] = FileOutput.forText([
+            'function main() {',
+            '    ' + firstModule.genName + '.init();',
+            '}',
+            ''
+        ].join('\n'));
+
+        /*
+        files['Py2CryTest.build'] = FileOutput.forJson({
+            "id": "Py2CryTest",
+            "source": "source/",
+            "output": "output/%TARGET_NAME%",
+            "title": "Py2CryTest",
+            //"icons": ["assets/icon32.png", "assets/icon256.png"],
+            "version": "1.0",
+            "iosBundlePrefix": "com.yourname.Py2CryTest,%VERSION%",
+            "guidSeed": "com.yourname.Py2CryTest,v1,%TARGET_NAME%",
+            // "imageSheets": [ { "id": "everything", "prefix": "*" } ],
+            "targets": [
+                { "name": "android", "platform": "javascript-app-android" },
+                { "name": "ios", "platform": "javascript-app-ios" },
+                { "name": "javascript", "platform": "javascript-app", "jsFilePrefix": "/" },
+                { "name": "csharp", "platform": "csharp-app" }
+            ]
+        });
+        */
+
+        templates = ['PyType', 'PyHelper', 'PyGlobals'];
+        for (template : templates) {
+            content = Resources.readText('templates/' + template + '.txt');
+            files[template + '.cry'] = FileOutput.forText(content);
+        }
+    }
+
+    function saveFiles(outputDirectory, files) {
+        filenames = files.keys();
+        filenames.sort();
+        for (filename : filenames) {
+            file = files[filename];
+            outputPath = outputDirectory + '/' + filename;
+            file.save(outputPath);
+        }
+    }
+}

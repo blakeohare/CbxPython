@@ -1,0 +1,115 @@
+﻿class ExecutableParser {
+
+    field parser;
+    field tokens;
+    field exprParser;
+
+    constructor(parser) {
+        this.parser = parser;
+    }
+
+    function parsePass() {
+        this.tokens.popExpected('pass');
+        this.tokens.popExpected('\n');
+        return null;
+    }
+
+    function parseImport(owner) {
+        importToken = this.tokens.popExpected('import');
+        target = this.tokens.popName();
+        this.tokens.popExpected('\n');
+        importStatement = new ImportStatement(importToken, target, owner);
+        this.parser.queueImport(importStatement);
+        return importStatement;
+    }
+
+    function parseClass(currentIndent, owner) {
+        classToken = this.tokens.popExpected('class');
+        className = this.tokens.popName();
+        baseClassExpression = null;
+        if (this.tokens.popIfPresent('(')) {
+            baseClassExpression = this.exprParser.parse(owner);
+            this.tokens.popExpected(')');
+        }
+        classDef = new ClassDefinition(classToken, className, baseClassExpression, owner);
+        classDef.rawBody = this.parser.parseColon(currentIndent, classDef);
+        return classDef;
+    }
+
+    function parseIf(currentIndent, parent) {
+        ifToken = this.tokens.popExpected('if');
+        condition = this.exprParser.parse(parent);
+
+        ifStatement = new IfStatement(ifToken, parent);
+        ifStatement.addElifOrIf(ifToken, condition, this.parser.parseColon(currentIndent, parent));
+
+        hasMoreInChain = true;
+        while (hasMoreInChain) {
+            if (this.tokens.peekIndent().length == currentIndent) {
+                next = this.tokens.peekValueAfterIndent();
+                if (next == 'elif') {
+                    this.tokens.pop(); // indent
+                    elifToken = this.tokens.popExpected('elif');
+                    condition = this.exprParser.parse(parent);
+                    body = this.parser.parseColon(currentIndent, parent);
+                    ifStatement.addElifOrIf(elifToken, condition, body);
+                } else if (next == 'else') {
+                    this.tokens.pop(); // indent
+                    elseToken = this.tokens.popExpected('else');
+                    body = this.parser.parseColon(currentIndent, parent);
+                    ifStatement.addElse(elseToken, body);
+                    hasMoreInChain = false;
+                } else {
+                    hasMoreInChain = false;
+                }
+            } else {
+                hasMoreInChain = false;
+            }
+        }
+        return ifStatement;
+    }
+
+    function parseWhile(currentIndent, parent) {
+        whileToken = this.tokens.popExpected('while');
+        condition = this.exprParser.parse(parent);
+        body = this.parser.parseColon(currentIndent, parent);
+        return new WhileLoop(whileToken, condition, body, parent);
+    }
+
+    function parseReturn(owner) {
+        returnToken = this.tokens.popExpected('return');
+        expr = null;
+        if (!this.tokens.popIfPresent('\n')) {
+            expr = this.exprParser.parse(owner);
+            this.tokens.popExpected('\n');
+        }
+        return new ReturnStatement(returnToken, expr, owner);
+    }
+
+    function parseDef(currentIndent, owner) {
+        defToken = this.tokens.popExpected('def');
+        nameToken = this.tokens.popName();
+        this.tokens.popExpected('(');
+        argTokens = [];
+        // TODO: default values
+        while (!this.tokens.popIfPresent(')')) {
+            if (argTokens.length > 0) this.tokens.popExpected(',');
+            argTokens.add(this.tokens.popName());
+        }
+
+        funcDef = new FunctionDefinition(defToken, nameToken, argTokens, owner);
+
+        funcDef.body = this.parser.parseColon(currentIndent, funcDef);
+
+        return funcDef;
+    }
+
+    function parseFor(currentIndent, owner) {
+        forToken = this.tokens.popExpected('for');
+        iteratorToken = this.tokens.popName();
+        this.tokens.popExpected('in');
+        collection = this.exprParser.parse(owner);
+        code = this.parser.parseColon(currentIndent, owner);
+        return new ForLoop(forToken, iteratorToken, collection, code, owner);
+    }
+}

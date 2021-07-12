@@ -1,0 +1,58 @@
+﻿class WhileLoop : Executable {
+
+    field condition;
+    field code;
+
+    constructor(whileToken, condition, code, owner)
+        : base(whileToken, owner) {
+        this.condition = condition;
+        this.code = code.clone();
+    }
+
+    function toPythonString(indent, sb) {
+        sb.add(indent, 'while ');
+        this.condition.toPythonString(indent, sb);
+        sb.add(':\n');
+        nextIndent = indent + '  ';
+        for (line : this.code) {
+            line.toPythonString(nextIndent, sb);
+        }
+    }
+
+    function findVarAssignments(varScope, module) {
+        for (line : this.code) {
+            line.findVarAssignments(varScope, module);
+        }
+    }
+
+    function identifyVariableSource(varScope) {
+        this.condition = this.condition.identifyVariableSource(varScope);
+        for (line : this.code) {
+            line.identifyVariableSource(this.owner.varScope);
+        }
+    }
+
+    function simplify(exporter) {
+        if (this.condition is BooleanLiteral && !this.condition.value) return [];
+
+        this.code = Executable.simplifyBodyOfCode(this.code, exporter);
+        return [this];
+    }
+
+    function serialize(sb, indent, exporter) {
+        nextIndent = indent + '  ';
+
+        i = ForLoop.forLoopIndexAlloc++;
+        iter = '_i' + i;
+        coll = '_c' + i;
+        sb.add(indent, 'while (PyTruthyCheck(');
+        this.condition.serialize(sb, indent, exporter);
+        sb.add(')) {\n');
+
+        for (line : this.code) {
+            line.serialize(sb, nextIndent, exporter);
+        }
+
+        sb.add(indent, '}\n');
+    }
+}

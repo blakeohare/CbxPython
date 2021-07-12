@@ -1,0 +1,69 @@
+﻿class OpChain : Expression {
+
+    field expressions;
+    field ops;
+
+    static field opToName = {
+        '+': 'PyAdd',
+        '-': 'PySub',
+        '*': 'PyMult',
+        '/': 'PyDiv',
+        '//': 'PyIntDiv',
+        '%': 'PyMod',
+        '**': 'PyExp',
+        '&': 'PyAnd',
+        '|': 'PyOr',
+        '^': 'PyXor',
+        '@': 'PyWeirdMult',
+        '<': 'PyLT',
+        '>': 'PyGT',
+        '<=': 'PyLTEQ',
+        '>=': 'PyGTEQ',
+    };
+
+    constructor(expressions, ops, owner) : base(expressions[0].firstToken, owner) {
+        this.expressions = expressions.clone();
+        this.ops = ops.clone();
+    }
+
+    function toPythonString(indent, sb) {
+        sb.add('(');
+
+        for (i = 0; i < this.expressions.length; ++i) {
+            if (i > 0) {
+                op = this.ops[i - 1];
+                sb.add(' ', op.value, ' ');
+            }
+            expr = this.expressions[i];
+            expr.toPythonString(indent, sb);
+        }
+        sb.add(')');
+    }
+
+    function identifyVariableSource(varScope) {
+        for (i = 0; i < this.expressions.length; ++i) {
+            this.expressions[i] = this.expressions[i].identifyVariableSource(varScope);
+        }
+        return this;
+    }
+
+    function serialize(sb, indent, exporter) {
+        for (i = this.ops.length - 1; i >= 0; --i) {
+            sb.add(OpChain.opToName[this.ops[i].value]);
+            sb.add('(');
+        }
+
+        for (i = 1; i < this.expressions.length; ++i) {
+            if (i == 1) {
+                this.expressions[i - 1].serialize(sb, indent, exporter);
+                sb.add(', ');
+                this.expressions[i].serialize(sb, indent, exporter);
+                sb.add(')');
+            } else {
+                sb.add(', ');
+                this.expressions[i].serialize(sb, indent, exporter);
+                sb.add(')');
+            }
+        }
+    }
+}

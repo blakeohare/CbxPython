@@ -1,0 +1,32 @@
+﻿class StringLiteral : Expression {
+
+    field value;
+
+    constructor(firstToken, value, owner) : base(firstToken, owner) {
+        this.value = value;
+    }
+
+    function toPythonString(indent, sb) {
+        sb.add('"', this.value, '"');
+    }
+
+    function identifyVariableSource(varScope) {
+        return this;
+    }
+
+    function serialize(sb, indent, exporter) {
+        sb.add('[PyType.STRING, "');
+        for (c : this.value) {
+            switch (c) {
+                case '\\': sb.add('\\\\'); break;
+                case '"': sb.add('\\"'); break;
+                case "'": sb.add("\\'"); break;
+                case '\t': sb.add('\\t'); break;
+                case '\n': sb.add('\\n'); break;
+                case '\r': sb.add('\\r'); break;
+                default: sb.add(c); break;
+            }
+        }
+        sb.add('"]');
+    }
+}

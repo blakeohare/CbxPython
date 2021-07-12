@@ -1,0 +1,3 @@
+﻿class Expression : Node {
+    constructor(firstToken, owner) : base(firstToken, owner) { }
+}

@@ -1,0 +1,31 @@
+﻿class ExpressionAsExecutable : Executable {
+
+    field expr;
+
+    constructor(expr, owner) : base(expr.firstToken, owner) {
+        this.expr = expr;
+    }
+
+    function toPythonString(indent, sb) {
+        sb.add(indent);
+        this.expr.toPythonString(indent, sb);
+        sb.add('\n');
+    }
+
+    function findVarAssignments(varScope, module) { }
+
+    function identifyVariableSource(varScope) {
+        this.expr = this.expr.identifyVariableSource(varScope);
+    }
+
+    function simplify(exporter) {
+        if (this.expr is FunctionInvocation) return [this];
+        return [];
+    }
+
+    function serialize(sb, indent, exporter) {
+        sb.add(indent);
+        this.expr.serialize(sb, indent, exporter);
+        sb.add(';\n');
+    }
+}

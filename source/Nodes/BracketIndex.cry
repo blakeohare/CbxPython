@@ -1,0 +1,33 @@
+﻿class BracketIndex : Expression {
+
+    field root;
+    field openBracketToken;
+    field indexExpression;
+
+    constructor(firstToken, root, openBracket, index, owner) : base(firstToken, owner) {
+        this.root = root;
+        this.openBracketToken = openBracket;
+        this.indexExpression = index;
+    }
+
+    function toPythonString(indent, sb) {
+        this.root.toPythonString(indent, sb);
+        sb.add('[');
+        this.indexExpression.toPythonString(indent, sb);
+        sb.add(']');
+    }
+
+    function identifyVariableSource(varScope) {
+        this.root = this.root.identifyVariableSource(varScope);
+        this.indexExpression = this.indexExpression.identifyVariableSource(varScope);
+        return this;
+    }
+
+    function serialize(sb, indent, exporter) {
+        sb.add('PyIndex(');
+        this.root.serialize(sb, indent, exporter);
+        sb.add(', ');
+        this.indexExpression.serialize(sb, indent, exporter);
+        sb.add(')');
+    }
+}

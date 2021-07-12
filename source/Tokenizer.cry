@@ -1,0 +1,239 @@
+﻿enum TokenizerMode {
+    NORMAL,
+    STRING,
+    COMMENT,
+    WORD,
+    NUMBER,
+    INDENT,
+}
+
+class Tokenizer {
+
+    field lines;
+    field cols;
+    field filename;
+    field content;
+    static field alphanums = {};
+    static field numerals = {};
+
+    static field multiTokens = Util.listToLookup([
+        '==', '<=', '>=', '!=',
+        '**',
+        '<<', '>>',
+        '+=', '-=', '*=', '/=', '%=',
+        '^=', '&=', '|=',
+        ':=',
+        '<<=', '>>=',
+    ]);
+
+    constructor(file, content) {
+        this.filename = file;
+        this.content = content.replace('\r\n', '\n').replace('\r', '\n');
+        this.lines = [];
+        this.cols = [];
+        line = 1;
+        col = 1;
+        for (c : content) {
+            this.lines.add(line);
+            this.cols.add(col);
+            if (c == '\n') {
+                col = 1;
+                line++;
+            } else {
+                col++;
+            }
+        }
+        for (c : 'abcdefghijklmnopqrstuvwxyz0123456789_') {
+            Tokenizer.alphanums[c] = true;
+            Tokenizer.alphanums[c.upper()] = true;
+        }
+        for (i = 0; i <= 9; ++i) {
+            Tokenizer.numerals[i + ''] = true;
+        }
+    }
+
+    function createToken(value, i, type) {
+        if (type == TokenType.WORD && value[0] == '@') {
+            type = TokenType.DECORATOR;
+        }
+        return new Token(this.filename, value, type, this.lines[i], this.cols[i]);
+    }
+
+    function tokenize() {
+        output = [];
+        content = this.content;
+        length = content.length;
+
+        mode = TokenizerMode.INDENT;
+        tokenStart = 0;
+
+        for (i = 0; i < length; ++i) {
+            c = content[i];
+            c2 = i + 1 < length ? (c + content[i + 1]) : c;
+
+            switch (mode) {
+                case TokenizerMode.INDENT:
+                    switch (c) {
+                        case ' ':
+                        case '\t':
+                            break;
+                        default:
+                            value = content[tokenStart:i];
+                            --i;
+                            if (value.length > 0) {
+                                output.add(this.createToken(value, tokenStart, TokenType.INDENT));
+                            }
+                            mode = TokenizerMode.NORMAL;
+                            break;
+                    }
+                    break;
+
+                case TokenizerMode.NORMAL:
+                    if (c == 'r' && (c2 == 'r"' || c2 == "r'")) {
+                        tokenStart = i++;
+                        tokenType = c2;
+                        mode = TokenizerMode.STRING;
+                    } else if (c == '@') {
+                        mode = TokenizerMode.WORD;
+                        tokenStart = i;
+                    } else if (Tokenizer.numerals.get(c, false)) {
+                        mode = TokenizerMode.NUMBER;
+                        tokenStart = i;
+                        tokenType = '1';
+                    } else if (Tokenizer.alphanums.get(c, false)) {
+                        tokenStart = i--;
+                        mode = TokenizerMode.WORD;
+                    } else if (c == '#') {
+                        mode = TokenizerMode.COMMENT;
+                    } else if (c == '.' && Tokenizer.numerals.get(c2[-1], false)) {
+                        mode = TokenizerMode.NUMBER;
+                        tokenStart = i;
+                        tokenType = '.';
+                    } else if (c == "'" || c == '"') {
+                        mode = TokenizerMode.STRING;
+                        tokenStart = i;
+                        if (c2 == c * 2 && i + 2 < length && content[i + 2] == c) {
+                            tokenType = c * 3;
+                            i += 2;
+                        } else {
+                            tokenType = c;
+                        }
+                    } else if (c == '\n') {
+                        output.add(this.createToken('\n', i, TokenType.NEW_LINE));
+                        mode = TokenizerMode.INDENT;
+                        tokenStart = i + 1;
+                    } else if (c == ' ' || c == '\r' || c == '\t') {
+                        break;
+                    } else {
+                        if (Tokenizer.multiTokens.get(c2, false)) {
+                            mtoken = c2;
+                            if ((c2 == '<<' || c2 == '>>') && i + 2 < length && content[i + 2] == '=') {
+                                mtoken += '=';
+                            }
+                            output.add(this.createToken(mtoken, i, TokenType.SYMBOL));
+                            i += mtoken.length - 1;
+                        } else {
+                            output.add(this.createToken(c, i, TokenType.SYMBOL));
+                        }
+                    }
+                    break;
+
+                case TokenizerMode.STRING:
+                    switch (tokenType) {
+                        case 'r"':
+                        case "r'":
+                            if (c == tokenType[1]) {
+                                output.add(this.createToken(content[tokenStart:i + 1], tokenStart, TokenType.STRING));
+                                mode = TokenizerMode.NORMAL;
+                            }
+                            break;
+
+                        case '"':
+                        case "'":
+                            if (c == tokenType) {
+                                output.add(this.createToken(content[tokenStart:i + 1], tokenStart, TokenType.STRING));
+                                mode = TokenizerMode.NORMAL;
+                            } else if (c == '\\') {
+                                i++;
+                            }
+                            break;
+
+                        case '"""':
+                        case "'''":
+                            if (c == tokenType[0] && this.content[i:i + 3] == tokenType) {
+                                output.add(this.createToken(content[tokenStart:i + 3], tokenStart, TokenType.STRING));
+                                mode = TokenizerMode.NORMAL;
+                                i += 2;
+                            } else if (c == '\\') {
+                                i++;
+                            }
+                            break;
+                        default: throw new Exception(); // unrecognized string type
+                    }
+                    break;
+
+                case TokenizerMode.COMMENT:
+                    if (c == '\n') {
+                        --i;
+                        mode = TokenizerMode.NORMAL;
+                    }
+                    break;
+
+                case TokenizerMode.WORD:
+                    if (!Tokenizer.alphanums.get(c, false)) {
+                        output.add(this.createToken(content[tokenStart:i], tokenStart, TokenType.WORD));
+                        mode = TokenizerMode.NORMAL;
+                        --i;
+                    }
+                    break;
+
+                case TokenizerMode.NUMBER:
+                    if (tokenType == '1' && c == '.') {
+                        tokenType = '.';
+                    } else if (!Tokenizer.numerals.get(c, false)) {
+                        output.add(this.createToken(content[tokenStart:i], tokenStart, TokenType.NUMBER));
+                        mode = TokenizerMode.NORMAL;
+                        --i;
+                    }
+
+                    // TODO: Hex? scientific notation?
+                    break;
+            }
+        }
+
+        stringOpenCrash = false;
+        switch (mode) {
+            case TokenizerMode.COMMENT:
+            case TokenizerMode.INDENT:
+            case TokenizerMode.NORMAL:
+                // this is fine
+                break;
+
+            case TokenizerMode.WORD:
+                output.add(this.createToken(content[tokenStart:], tokenStart, TokenType.WORD));
+                break;
+            case TokenizerMode.NUMBER:
+                output.add(this.createToken(content[tokenStart:], tokenStart, TokenType.NUMBER));
+                break;
+
+            case TokenizerMode.STRING:
+                stringOpenCrash = true;
+                break;
+        }
+
+        stream = new TokenStream(this.filename, output, content);
+        for (token : stream.tokens) {
+            token.stream = stream;
+        }
+
+        if (stringOpenCrash) {
+            throw new ParserException(stream, "EOL while scanning string literal");
+        }
+
+        if (stream.error != null) {
+            throw new ParserException(stream.error[0], stream.error[1]);
+        }
+
+        return stream;
+    }
+}

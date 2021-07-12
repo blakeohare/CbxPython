@@ -1,0 +1,56 @@
+static class PyGlobals {
+	
+	static field INTS = [];
+	static field COMMON_STRINGS = {};
+	static field NONE;
+	static field TRUE;
+	static field FALSE;
+	static field NEGATIVE_ONE;
+	static field ZERO;
+	static field ONE;
+	static field TWO;
+	static field ZERO_F;
+	static field ONE_F;
+	static field EMPTY_STRING;
+	
+	static constructor() {
+		PyGlobals.NONE = [PyType.NONE, null];
+		PyGlobals.TRUE = [PyType.BOOLEAN, true];
+		PyGlobals.FALSE = [PyType.BOOLEAN, false];
+		
+		for (i = 0; i < 2002; ++i) {
+			PyGlobals.INTS.add(null);
+		}
+		
+		for (i = 0; i <= 1000; ++i) {
+			PyGlobals.INTS[i] = [PyType.INTEGER, i];
+		}
+		for (i = -1; i >= -1000; --i) {
+			PyGlobals.INTS[i] = [PyType.INTEGER, i];
+		}
+		
+		PyGlobals.NEGATIVE_ONE = PyGlobals.INTS[-1];
+		PyGlobals.ZERO = PyGlobals.INTS[0];
+		PyGlobals.ONE = PyGlobals.INTS[1];
+		PyGlobals.TWO = PyGlobals.INTS[2];
+		PyGlobals.ZERO_F = [PyType.FLOAT, 0.0];
+		PyGlobals.ONE_F = [PyType.FLOAT, 1.0];
+		PyGlobals.EMPTY_STRING = [PyType.STRING, ''];
+	}
+	
+	static function getInt(value) {
+		if (value > 1000 || value < -1000) return [PyType.INTEGER, value];
+		return PyGlobals.INTS[value];
+	}
+	
+	static function getString(value) {
+		s = PyGlobals.COMMON_STRINGS.get(value);
+		if (s != null) return s;
+		if (value.length == 1) {
+			s = [PyType.STRING, value];
+			PyGlobals.COMMON_STRINGS[value] = s;
+			return s;
+		}
+		return [PyType.STRING, value];
+	}
+}

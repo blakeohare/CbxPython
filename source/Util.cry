@@ -1,0 +1,61 @@
+﻿static class Util {
+
+    static function listToLookup(items) {
+        lookup = {};
+        for (item : items) {
+            lookup[item] = true;
+        }
+        return lookup;
+    }
+
+    static field ESCAPE_SEQUENCES = {
+        'n': '\n',
+        'r': '\r',
+        't': '\t',
+        '"': '"',
+        "'": "'",
+        '0': '\0',
+        '\\': '\\',
+        // TODO: \x
+    };
+
+    static function stringTokenToValue(token) {
+        rawValue = token.value;
+        if (rawValue[0] == 'r') {
+            f4 = rawValue[:4];
+            if (f4 == 'r"""' || f4 == "r'''") {
+                return rawValue[4:-3];
+            } else {
+                return rawValue[2:-1];
+            }
+        }
+
+        f3 = rawValue[:3];
+        if (f3 == '"""' || f3 == "'''") {
+            trimmed = rawValue[3:-3];
+        } else {
+            trimmed = rawValue[1:-1];
+        }
+
+        output = [];
+        for (i = 0; i < trimmed.length; ++i) {
+            c = trimmed[i];
+            if (c == '\\') {
+                if (i + 1 < trimmed.length) {
+                    seq = Util.ESCAPE_SEQUENCES.get(trimmed[i + 1]);
+                    if (seq != null) {
+                        output.add(seq);
+                    } else {
+                        throw new ParserException(token, "Unrecognized escape sequence: '\\" + trimmed[i + 1] + "'");
+                    }
+                    ++i;
+                } else {
+                    throw new ParserException(token, "String cannot end with a backslash with no escape sequence.");
+                }
+            } else {
+                output.add(c);
+            }
+        }
+        return output.join('');
+    }
+}

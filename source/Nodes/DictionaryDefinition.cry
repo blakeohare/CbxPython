@@ -1,0 +1,56 @@
+﻿class DictionaryDefinition : Expression {
+
+    field keys;
+    field values;
+
+    constructor(dictToken, keys, values, owner) : base(dictToken, owner) {
+        this.keys = keys.clone();
+        this.values = values.clone();
+    }
+
+    function toPythonString(indent, sb) {
+        if (this.keys.length == 0) {
+            sb.add('{}');
+            return;
+        }
+        if (this.keys.length == 1) {
+            sb.add('{ ');
+            this.keys[0].toPythonString(indent, sb);
+            sb.add(': ');
+            this.values[0].toPythonString(indent, sb);
+            sb.add(' }');
+        }
+        sb.add('{\n');
+        nextIndent = indent + '  ';
+        for (i = 0; i < this.keys.length; ++i) {
+            sb.add(nextIndent);
+            this.keys[i].toPythonString(nextIndent, sb);
+            sb.add(': ');
+            this.values[i].toPythonString(nextIndent, sb);
+            if (i < this.keys.length - 1) {
+                sb.add(',');
+            }
+            sb.add('\n');
+        }
+        sb.add(indent, '}');
+    }
+
+    function identifyVariableSource(varScope) {
+        for (i = 0; i < this.values.length; ++i) {
+            this.keys[i] = this.keys[i].identifyVariableSource(varScope);
+            this.values[i] = this.values[i].identifyVariableSource(varScope);
+        }
+        return this;
+    }
+
+    function serialize(sb, indent, exporter) {
+        sb.add('PyDictMaker([');
+        for (i = 0; i < this.keys.length; ++i) {
+            this.keys[i].serialize(sb, indent, exporter);
+            sb.add(', ');
+            this.values[i].serialize(sb, indent, exporter);
+            if (i < this.keys.length - 1) sb.add(',');
+        }
+        sb.add(indent, '])');
+    }
+}

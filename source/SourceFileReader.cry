@@ -1,0 +1,50 @@
+﻿import FileIO;
+import Resources;
+
+class SourceFileReader {
+    function readFile(path) {
+        throw new NotImplementedException();
+    }
+
+    function isFilePresent(path) {
+        throw new NotImplementedException();
+    }
+}
+
+class DiskSourceFileReader : SourceFileReader {
+    
+    field sourceDir;
+    
+    constructor(rootDir) : base() {
+        this.sourceDir = rootDir;
+    }
+
+    function readFile(path) {
+        fullpath = FileIO.pathJoin([this.sourceDir, path]);
+        print(fullpath);
+        return FileIO.fileReadText(fullpath);
+    }
+
+    function isFilePresent(path) {
+        return FileIO.fileExists(FileIO.pathJoin([this.sourceDir, path]));
+    }
+}
+
+// Reads sample test project files in embedded resources
+class DebugSourceFileReader : SourceFileReader {
+
+    field filePrefix;
+
+    constructor(rootDir) : base() {
+        if (rootDir == '.') this.filePrefix = '';
+        else this.filePrefix = rootDir + '/';
+    }
+
+    function readFile(path) {
+        return Resources.readText(this.filePrefix + path);
+    }
+
+    function isFilePresent(path) {
+        return Resources.fileExists(this.filePrefix + path);
+    }
+}

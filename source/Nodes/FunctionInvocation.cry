@@ -1,0 +1,44 @@
+﻿class FunctionInvocation : Expression {
+
+    field root;
+    field openParenToken;
+    field args;
+
+    constructor(firstToken, root, openParen, argExpressions, owner)
+        : base(firstToken, owner) {
+
+        this.root = root;
+        this.openParenToken = openParen;
+        this.args = argExpressions.clone();
+    }
+
+    function toPythonString(indent, sb) {
+        this.root.toPythonString(indent, sb);
+        sb.add('(');
+        for (i = 0; i < this.args.length; ++i) {
+            if (i > 0) sb.add(', ');
+            this.args[i].toPythonString(indent, sb);
+        }
+        sb.add(')');
+    }
+
+    function identifyVariableSource(varScope) {
+        this.root = this.root.identifyVariableSource(varScope);
+        for (i = 0; i < this.args.length; ++i) {
+            this.args[i] = this.args[i].identifyVariableSource(varScope);
+        }
+        return this;
+    }
+
+    function serialize(sb, indent, exporter) {
+        sb.add('PyFuncInvoke(');
+        this.root.serialize(sb, indent, exporter);
+        sb.add(', [');
+
+        for (i = 0; i < this.args.length; ++i) {
+            if (i > 0) sb.add(', ');
+            this.args[i].serialize(sb, indent, exporter);
+        }
+        sb.add('])');
+    }
+}

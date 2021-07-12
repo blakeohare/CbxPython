@@ -1,0 +1,100 @@
+﻿class AssignStatement : Executable {
+
+    field target;
+    field value;
+    field opToken;
+    field op;
+
+    constructor(target, opToken, value, owner) : base(target.firstToken, owner) {
+        this.target = target;
+        this.opToken = opToken;
+        this.op = opToken.value;
+        this.value = value;
+    }
+
+    function toPythonString(indent, sb) {
+        sb.add(indent);
+        this.target.toPythonString(indent, sb);
+        sb.add(' ', this.op, ' ');
+        this.value.toPythonString(indent, sb);
+        sb.add('\n');
+    }
+
+    function findVarAssignments(varScope, module) {
+        if (this.op == '=' && this.target is Variable) {
+            varScope.addSource(this.target.name, this);
+        }
+    }
+
+    function identifyVariableSource(varScope) {
+        this.target = this.target.identifyVariableSource(varScope);
+        this.value = this.value.identifyVariableSource(varScope);
+    }
+
+    function simplify(exporter) { return [this]; }
+
+    function opToFunc(op) {
+        if (op == '=') throw new Exception(); // this shouldn't come down this code path.
+        if (op.endsWith('=')) op = op[:-1];
+        switch (op) {
+            case '+': return 'PyAdd';
+            case '-': return 'PySubtract';
+            case '*': return 'PyMult';
+            case '/': return 'PyDiv';
+            case '//': return 'PyIntDiv';
+            case '%': return 'PyMod';
+            case '**': return 'PyExponent';
+            case '&': return 'PyBitAnd';
+            case '|': return 'PyBitOr';
+            case '^': return 'PyBitXor';
+            case '<<': return 'PyBitShiftLeft';
+            case '>>': return 'PyBitShiftRight';
+            default: throw new NotImplementedException();
+        }
+    }
+
+    function serialize(sb, indent, exporter) {
+
+        if (this.target is Variable) {
+            sb.add(indent);
+            this.target.serialize(sb, indent, exporter);
+            sb.add(' = ');
+            if (this.op == '=') {
+                this.value.serialize(sb, indent, exporter);
+            } else {
+                sb.add(this.opToFunc(this.op), '(');
+                this.target.serialize(sb, indent, exporter);
+                sb.add(', ');
+                this.value.serialize(sb, indent, exporter);
+                sb.add(')');
+            }
+            sb.add(';\n');
+            return;
+        }
+
+        if (this.target is DotField) {
+            sb.add(indent);
+            sb.add('PyAssignDotField(');
+            // you must serialize the value first before the target because that code
+            // must get executed first.
+            this.value.serialize(sb, indent, exporter);
+            sb.add(', ');
+            this.target.root.serialize(sb, indent, exporter);
+            // TODO: just pass in the op function instead of the string op.
+            opFunc = this.op == '=' ? 'null' : this.opToFunc(this.op);
+            sb.add(', "', this.target.fieldName.value, '", ', opFunc, ');\n');
+            return;
+        } else {
+            throw new NotImplementedException("Assign to " + this.target);
+        }
+
+        if (this.op == '=') {
+            sb.add(' = ');
+        } else {
+            throw new NotImplementedException("Assign with op: " + this.op);
+        }
+
+        this.value.serialize(sb, indent, exporter);
+        sb.add(';\n');
+    }
+}

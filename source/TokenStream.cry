@@ -1,0 +1,149 @@
+﻿class TokenStream {
+    field filename;
+    field fileLines;
+    field tokens;
+    field index;
+    field length;
+    field error = null;
+
+    constructor(filename, tokens, fileContent) {
+        this.filename = filename;
+        this.fileLines = fileContent.split('\n');
+
+        // filter out extraneous whitespace
+        this.tokens = [];
+        for (i = 0; i < tokens.length; ++i) {
+            current = tokens[i];
+            if (this.tokens.length > 0) {
+                prev = this.tokens[-1];
+                if (current.type == TokenType.NEW_LINE && prev.type == TokenType.NEW_LINE) {
+                    continue;
+                }
+                if (current.type == TokenType.NEW_LINE && prev.type == TokenType.INDENT) {
+                    this.tokens.pop();
+                    continue;
+                }
+            } else {
+                if (current.type == TokenType.NEW_LINE) {
+                    continue;
+                }
+            }
+            this.tokens.add(current);
+        }
+
+        while (this.tokens.length > 0 && this.tokens[-1].value == '\n') {
+            this.tokens.pop();
+        }
+
+        isTabs = null;
+        for (token : this.tokens) {
+            if (token.type == TokenType.INDENT) {
+                if (isTabs == null) isTabs = token.value[0] == '\t';
+                if (token.value.length * (isTabs ? '\t' : ' ') != token.value) {
+                    this.error = [token, "Mixed tabs and spaces."];
+                    return;
+                }
+            }
+        }
+
+        this.index = 0;
+        this.length = this.tokens.length;
+    }
+
+    function hasMore() {
+        return this.index < this.length;
+    }
+
+    function pop() {
+        if (this.index < this.length) return this.tokens[this.index++];
+        return null;
+    }
+
+    function peek() {
+        if (this.index < this.length) return this.tokens[this.index];
+        return null;
+    }
+
+    function peekValue() {
+        if (this.index < this.length) return this.tokens[this.index].value;
+        return null;
+    }
+
+    function peekIndent() {
+        if (this.index < this.length) {
+            t = this.tokens[this.index];
+            if (t.type == TokenType.INDENT) return t.value;
+        }
+        return '';
+    }
+
+    function skipWhitespace() {
+        while (this.index < this.length) {
+            type = this.tokens[this.index].type;
+            if (type == TokenType.INDENT || type == TokenType.NEW_LINE) {
+                this.index++;
+            } else {
+                return;
+            }
+        }
+    }
+
+    function isNext(value) {
+        return this.index < this.length && this.tokens[this.index].value == value;
+    }
+
+    function isNextType(type) {
+        return this.index < this.length && this.tokens[this.index].type == type;
+    }
+
+    function popIndent() {
+        if (this.index < this.length && this.tokens[this.index].type == TokenType.INDENT) return this.pop();
+        return null;
+    }
+
+    function peekValueAfterIndent() {
+        index = this.index;
+        if (index < this.length && this.tokens[index].type == TokenType.INDENT) index++;
+        if (index >= this.length) return null;
+        return this.tokens[index].value;
+    }
+
+    function popName() {
+        t = this.pop();
+        if (t == null) this.throwEofException();
+        if (t.type != TokenType.WORD) throw new ParserException(t, "Expected name but found " + this.formatTokenValue(t.value));
+        return t;
+    }
+
+    function formatTokenValue(value) {
+        if (value == '\n') return 'End-of-line';
+        return "'" + value + "'";
+    }
+
+    function popExpected(value) {
+        if (this.index < this.length) {
+            token = this.tokens[this.index];
+            if (token.value == value) {
+                this.index++;
+                return token;
+            }
+            throw new ParserException(token, "Expected " + this.formatTokenValue(value) + " but found " + this.formatTokenValue(token.value));
+        }
+        throw this.throwEofException();
+    }
+
+    function popIfPresent(value) {
+        if (this.index < this.length) {
+            token = this.tokens[this.index];
+            if (token.value == value) {
+                this.index++;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function throwEofException() {
+        throw new ParserException(this, "Unexpected EOF");
+    }
+}

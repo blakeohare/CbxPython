@@ -1,0 +1,34 @@
+﻿class ImportStatement : Executable {
+
+    field target;
+    field file; // set by parser
+
+    constructor(importToken, target, owner) : base(importToken, owner) {
+        this.target = target;
+    }
+
+    function toPythonString(indent, sb) {
+        sb.add(indent, 'import ', this.target.value, '\n');
+    }
+
+    function serialize(sb, indent, exporter) {
+        sb.add(indent);
+        sb.add(
+            'Mv["',
+            this.target.value,
+            '"] = ',
+            exporter.parser.moduleGenNameByFile[this.file],
+            '.init();');
+        sb.add('\n');
+
+    }
+
+    function findVarAssignments(varScope, module) {
+        if (varScope.parentScope != null) throw new ParserException(this, "imports can only appear in the global scope.");
+        varScope.addSource(this.target.value, this);
+    }
+
+    function identifyVariableSource(varScope) { }
+
+    function simplify(exporter) { return [this]; }
+}

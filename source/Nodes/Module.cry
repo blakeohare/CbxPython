@@ -1,0 +1,47 @@
+﻿class Module {
+    field name;
+    field genName;
+    field code;
+    field varScope;
+
+    constructor(name, genName) {
+        this.name = name;
+        this.genName = genName;
+        this.varScope = new VariableScope();
+        this.varScope.module = this;
+    }
+
+    function toPythonString() {
+        sb = [];
+        for (line : this.code) {
+            line.toPythonString('', sb);
+        }
+        return sb.join('');
+    }
+
+    function serialize(exporter) {
+        sb = [];
+        nl = '\n';
+        t1 = ' ' * 4;
+        t2__ = ' ' * 8;
+
+        sb.add('static class ', this.genName, ' {\n\n');
+        sb.add('    static field M = null;\n\n');
+        sb.add('    static function init() {\n');
+        sb.add('        if (', this.genName, '.M != null) return ', this.genName, '.M;\n\n');
+
+        sb.add('        Mv = {};\n');
+        sb.add(t2__, 'M = [PyType.MODULE, Mv];\n');
+        sb.add(t2__, this.genName, '.M = M;\n');
+
+        for (line : this.code) {
+            line.serialize(sb, '        ', exporter);
+        }
+
+        sb.add('        return M;\n');
+        sb.add('    }\n');
+        sb.add('}\n');
+
+        return sb.join('');
+    }
+}
